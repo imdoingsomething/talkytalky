@@ -73,15 +73,17 @@ if [[ -z "$gpu_vendor" ]]; then
     pci="$(lspci 2>/dev/null | grep -Ei 'vga|3d|display' || true)"
     if grep -qi nvidia <<< "$pci"; then
       gpu_vendor=nvidia
-    elif grep -qiE 'amd|ati|radeon' <<< "$pci"; then
+    elif grep -qi 'intel' <<< "$pci"; then
+      # "Corporation" contains the substring "ati", so Intel must be checked
+      # before the AMD/ATI match below or every Intel iGPU misreads as AMD.
+      if grep -qiE 'arc|dg[12]|battlemage|alchemist' <<< "$pci"; then gpu_vendor=intel; else gpu_vendor=intel-igpu; fi
+    elif grep -qiE 'amd|radeon|\bati\b' <<< "$pci"; then
       # Discrete AMD parts show as "Navi"/"Radeon RX"; APUs say "Raphael"/"Rembrandt"/"Phoenix"/"Renoir"/"Cezanne".
       if grep -qiE 'raphael|rembrandt|phoenix|renoir|cezanne|picasso|raven|strix|granite ridge|vega [0-9]+ ?\(?mobile' <<< "$pci"; then
         gpu_vendor=amd-igpu
       else
         gpu_vendor=amd
       fi
-    elif grep -qi 'intel' <<< "$pci"; then
-      if grep -qiE 'arc|dg[12]|battlemage|alchemist' <<< "$pci"; then gpu_vendor=intel; else gpu_vendor=intel-igpu; fi
     fi
     gpu_name="$(sed -E 's/^[^:]*: //; s/ \(rev [^)]*\)//' <<< "$pci" | head -1)"
   fi
