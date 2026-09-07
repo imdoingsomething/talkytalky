@@ -1,0 +1,11 @@
+# ~/.config/talkytalky/talkytalky.conf — sourced by every talkytalky script.
+
+# Where dictations land. One .md per dictation, under $TALKYTALKY_SESSIONS_DIR.
+TALKYTALKY_VAULT="$HOME/ObsidianVaults/TalkyTalky Vault"
+TALKYTALKY_SESSIONS_DIR="Sessions"
+
+# Optional Wispr-style cleanup, run on the transcript before it's typed and logged.
+# Receives text on stdin, must print cleaned text on stdout. Leave empty to skip.
+# Keep timeout_ms in config.toml generous (30000) if you enable this.
+#TALKYTALKY_CLEANUP_CMD="ollama run llama3.2:1b 'Fix grammar and punctuation, remove filler words. Output only the cleaned text:'"
+TALKYTALKY_CLEANUP_CMD=""

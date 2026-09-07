@@ -1,0 +1,102 @@
+#!/usr/bin/env bash
+# talkytalky — thin front door over voxtype + the vault + the doctor.
+set -euo pipefail
+
+# shellcheck source=talkytalky-lib.sh
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/talkytalky-lib.sh"
+BIN_DIR="$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")"
+
+usage() {
+  cat <<EOF
+${C_ACCENT}${C_BOLD}talkytalky${C_RESET}${C_DIM} — local dictation, logged to Obsidian${C_RESET}
+
+  ${C_FG}doctor${C_RESET}   ${C_DIM}[--dry-run|--json|--recheck]${C_RESET}   scan hardware, pick engine, write config
+  ${C_FG}status${C_RESET}                                  what the daemon is doing right now
+  ${C_FG}record${C_RESET}   ${C_DIM}start|stop|toggle${C_RESET}               drive a dictation by hand
+  ${C_FG}log${C_RESET}      ${C_DIM}[N]${C_RESET}                             last N dictations from the vault (default 5)
+  ${C_FG}vault${C_RESET}                                   open the vault in Obsidian
+  ${C_FG}config${C_RESET}                                  open voxtype's config.toml in \$EDITOR
+  ${C_FG}engine${C_RESET}   ${C_DIM}[name] [model]${C_RESET}                  show or swap the engine without the doctor
+EOF
+}
+
+cmd_status() {
+  local state="idle"
+  local sf="${XDG_RUNTIME_DIR:-/tmp}/voxtype/state"
+  [[ -r "$sf" ]] && state="$(tr -d '[:space:]' < "$sf")"
+  local col="$C_DIM" glyph="○"
+  case "$state" in
+    recording)    col="$C_REC";  glyph="●" ;;
+    transcribing) col="$C_WARN"; glyph="◐" ;;
+  esac
+  tt_head "talkytalky"
+  printf '  %s%s %s%s\n' "$col" "$glyph" "$state" "$C_RESET"
+  local engine; engine="$(tt_engine_from_config)"
+  tt_kv "engine" "$engine · $(tt_model_from_config "$engine")"
+  tt_kv "vault"  "$TALKYTALKY_VAULT"
+  if tt_have systemctl; then
+    local svc; svc="$(systemctl --user is-active voxtype 2>/dev/null || true)"
+    tt_kv "daemon" "${svc:-not found}"
+  fi
+  local n; n="$(find "$TALKYTALKY_VAULT/$TALKYTALKY_SESSIONS_DIR" -name '*.md' 2>/dev/null | wc -l)"
+  tt_kv "logged" "$n dictations"
+  echo
+}
+
+cmd_log() {
+  local n="${1:-5}"
+  local dir="$TALKYTALKY_VAULT/$TALKYTALKY_SESSIONS_DIR"
+  [[ -d "$dir" ]] || { tt_dim "  nothing logged yet."; return 0; }
+  tt_head "last $n"
+  find "$dir" -name '*.md' -print0 | sort -z | tail -z -n "$n" | while IFS= read -r -d '' f; do
+    local app words body
+    app="$(sed -nE 's/^app: "?([^"]*)"?$/\1/p' "$f")"
+    words="$(sed -nE 's/^words: //p' "$f")"
+    body="$(awk 'f{print} /^---$/{c++; if(c==2) f=1}' "$f" | tr '\n' ' ' | cut -c1-96)"
+    printf '  %s%s%s  %s%s · %sw%s\n' "$C_ACCENT" "$(basename "$f" .md)" "$C_RESET" "$C_DIM" "${app:-?}" "${words:-?}" "$C_RESET"
+    printf '  %s%s%s\n\n' "$C_FG" "$body" "$C_RESET"
+  done
+}
+
+cmd_engine() {
+  if [[ $# -eq 0 ]]; then
+    local e; e="$(tt_engine_from_config)"
+    tt_kv "engine" "$e · $(tt_model_from_config "$e")"
+    return 0
+  fi
+  local engine="$1" model="${2:-}"
+  [[ -f "$VOX_CONFIG_FILE" ]] || { tt_err "no config yet — run: talkytalky doctor"; exit 1; }
+  sed -i -E "s/^engine = \"[^\"]*\"/engine = \"$engine\"/" "$VOX_CONFIG_FILE"
+  if [[ -n "$model" ]]; then
+    awk -v want="[$engine]" -v m="$model" '
+      /^\[/ { in_tbl = ($0 == want) }
+      in_tbl && /^[[:space:]]*model[[:space:]]*=/ { print "model = \"" m "\""; next }
+      { print }' "$VOX_CONFIG_FILE" > "$VOX_CONFIG_FILE.tmp" && mv "$VOX_CONFIG_FILE.tmp" "$VOX_CONFIG_FILE"
+  fi
+  tt_ok "engine → $engine${model:+ · $model}"
+  tt_dim "  fetch it if needed:  voxtype setup --download   then   systemctl --user restart voxtype"
+}
+
+case "${1:-}" in
+  doctor)  shift; exec "$BIN_DIR/talkytalky-doctor" "$@" ;;
+  status)  cmd_status ;;
+  log)     shift; cmd_log "$@" ;;
+  engine)  shift; cmd_engine "$@" ;;
+  record)
+    shift
+    case "${1:-}" in
+      start) shift; exec "$BIN_DIR/talkytalky-record-start" "$@" ;;
+      stop|toggle) exec voxtype record "$@" ;;
+      *) tt_err "record start|stop|toggle"; exit 2 ;;
+    esac ;;
+  vault)
+    if tt_have xdg-open; then
+      xdg-open "obsidian://open?path=$(printf '%s' "$TALKYTALKY_VAULT" | sed 's/ /%20/g')" >/dev/null 2>&1 \
+        || xdg-open "$TALKYTALKY_VAULT"
+    else
+      tt_say "$TALKYTALKY_VAULT"
+    fi ;;
+  config)  exec "${EDITOR:-nano}" "$VOX_CONFIG_FILE" ;;
+  -h|--help|help|"") usage ;;
+  *) tt_err "unknown command: $1"; usage; exit 2 ;;
+esac
