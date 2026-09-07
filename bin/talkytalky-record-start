@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# talkytalky-record-start — snapshot the focused window, then start recording.
+#
+# Bound to the key *press* in Hyprland. Focus doesn't change mid-dictation, so
+# the snapshot is still right by the time the post_process hook reads it.
+set -uo pipefail
+
+# shellcheck source=talkytalky-lib.sh
+source "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/talkytalky-lib.sh"
+
+mkdir -p "$TT_RUNTIME_DIR" 2>/dev/null || true
+
+if command -v hyprctl >/dev/null 2>&1; then
+  # Line 1: class, line 2: title. Avoid jq dependency; hyprctl's JSON is flat here.
+  hyprctl activewindow -j 2>/dev/null \
+    | sed -nE 's/^[[:space:]]*"(class|title)":[[:space:]]*"(.*)",?$/\1=\2/p' \
+    | awk -F= '/^class=/{c=substr($0,7)} /^title=/{t=substr($0,7)} END{print c; print t}' \
+    > "$TT_LASTWINDOW" 2>/dev/null || printf 'unknown\n\n' > "$TT_LASTWINDOW"
+else
+  printf 'unknown\n\n' > "$TT_LASTWINDOW" 2>/dev/null || true
+fi
+
+exec voxtype record start "$@"
