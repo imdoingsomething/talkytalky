@@ -83,5 +83,5 @@ if tt_have systemctl && tt_have voxtype; then
 fi
 
 echo
-tt_say "  reload hyprland (SUPER+SHIFT+R or hyprctl reload), hold SUPER+V, talk."
+tt_say "  reload hyprland (hyprctl reload), hold F9, talk."
 echo

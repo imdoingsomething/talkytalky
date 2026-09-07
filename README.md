@@ -16,9 +16,9 @@ git clone https://github.com/imdoingsomething/talkytalky ~/.local/src/talkytalky
 ~/.local/src/talkytalky/install.sh
 ```
 
-That installs voxtype (via paru/yay), links the scripts into `~/.local/bin`, drops the Hyprland keybind into `~/.config/hypr/talkytalky.conf` (and sources it), sets up the Quickshell OSD, runs the doctor, and starts the daemon.
+That installs voxtype (via paru/yay), links the scripts into `~/.local/bin`, drops the Hyprland keybinds into `~/.config/hypr/talkytalky.conf` (and sources it), sets up the Quickshell OSD, runs the doctor, and starts the daemon.
 
-Reload Hyprland. Hold **SUPER+V**. Talk.
+Reload Hyprland. Hold **F9**. Talk. (Or **SUPER+CTRL+X** to toggle — the same keys Omarchy already reserves for dictation, so nothing else moves.)
 
 ## Use
 
@@ -89,7 +89,7 @@ bin/
   talkytalky-lib.sh             shared helpers + palette
 config/
   config.toml.tmpl              voxtype config: hooks, OSD recipe, engine block the doctor fills in
-  hypr-talkytalky.conf          SUPER+V push-to-talk
+  hypr-talkytalky.conf          F9 push-to-talk, SUPER+CTRL+X toggle
   talkytalky.conf.example       vault path, cleanup command
 ```
 
